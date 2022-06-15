@@ -1,7 +1,3 @@
-const {getExports} = require('../helper/heroku-api')
-const chains = ['ethereum', 'optimism']
+const api = require('./api')
 
-module.exports = {
-    timetravel: false,
-    ...getExports("synthetix", chains)
-}
+module.exports = api

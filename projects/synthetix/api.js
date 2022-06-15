@@ -39,7 +39,7 @@ function chainTvl(chain) {
     let totalTopStakersSNXLocked = new BigNumber(0);
     let totalTopStakersSNX = new BigNumber(0);
 
-    const holdersAll = sliceIntoChunks(await SNXHolders(snxGraphEndpoint, block, chain), 300)
+    const holdersAll = sliceIntoChunks(await SNXHolders(snxGraphEndpoint, block, chain), 1800)
     console.log('holders count: ', holdersAll.flat().length, chain)
 
     const issuanceRatio = (await sdk.api.abi.call({
@@ -50,23 +50,25 @@ function chainTvl(chain) {
     })).output;
 
     for (const holders of holdersAll) {
+      const holderChunks = sliceIntoChunks(holders, 300)
+      await Promise.all(holderChunks.map(addHolderTVL))
+    }
 
+    async function addHolderTVL(holders) {
       const calls = holders.map(holder => ({ target: synthetix, params: holder }))
-      const [ratio, collateral] = await Promise.all([
-        sdk.api.abi.multiCall({
-          block,
-          chain,
-          abi: abi['collateralisationRatio'],
-          calls,
-        }),
-        sdk.api.abi.multiCall({
-          block,
-          chain,
-          abi: abi['collateral'],
-          calls,
-        })
-      ])
-      
+      const ratio = await sdk.api.abi.multiCall({
+        block,
+        chain,
+        abi: abi['collateralisationRatio'],
+        calls,
+      })
+      const collateral = await sdk.api.abi.multiCall({
+        block,
+        chain,
+        abi: abi['collateral'],
+        calls,
+      })
+
       await requery(ratio, chain, block, abi['collateralisationRatio'])
       await requery(collateral, chain, block, abi['collateral'])
       const ratios = {}
@@ -83,7 +85,7 @@ function chainTvl(chain) {
         let locked = _collateral * Math.min(1, _ratio / issuanceRatio);
         totalTopStakersSNX = totalTopStakersSNX.plus(_collateral)
         totalTopStakersSNXLocked = totalTopStakersSNXLocked.plus(locked);
-      });
+      })
     }
 
     const percentLocked = totalTopStakersSNXLocked.div(totalTopStakersSNX);
